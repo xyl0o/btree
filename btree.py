@@ -5,6 +5,8 @@ class Node():
         self.k = k
         self.h = h
 
+        self.namefoo=""
+
         assert not parent or parent.root_dist() + 1 < h, "h = %s is too small for this node" % h
         self.parent = parent
 
@@ -31,24 +33,29 @@ class Node():
         return len(self.values) is 2*self.k
 
     def search(self, val):
+        if val in self.values:
+            return True, self  # then return this node
+
         # if this is a leaf, val is here or not in the tree at all
         if self.is_leaf():
-            # is it in this node?
-            if val in self.values:
-                return True, self  # then return this node
-            else:
-                return False, self  # val not in tree
+            return False, self  # val not in tree
 
         # get subtree to search
         index = 0
         while index < len(self.values) and self.values[index] < val:
-            ++index
+            index += 1
         # now index points to the item to big for val
         # so it is the correct index for children
         subtree = self.children[index]
         return subtree.search(val)
 
-    # TODO
+    def put(self, origin, median, new):
+        index = self.children.index(origin) + 1
+        self.values.insert(index, median)
+        self.children.insert(index, new)
+        if len(self.values) > 2*self.k:
+            self.split()
+
     def split(self):
         assert len(self.values) > 2*self.k, "please split only (over-)full nodes"
         # A single median is chosen from among the leaf's elements and the new element.
@@ -58,41 +65,32 @@ class Node():
         # with the median acting as a separation value.
         leftvalues = self.values[:self.k]
         rightvalues = self.values[self.k+1:]
+        if self.children:
+            leftchildren = self.children[:self.k]  # TODO copy also childen
+            rightchildren = self.children[self.k+1:]  # TODO copy also childen
+        else:
+            leftchildren = None
+            rightchildren = None
         # The separation value is inserted in the node's parent,
         # which may cause it to be split, and so on.
         # If the node has no parent (i.e., the node was the root),
         # create a new root above this node (increasing the height of the tree)
+        self.values = leftvalues 
+        self.children = leftchildren
         if self.is_root():
-            # keep it root
-            # TODO --children--
-            newleft = Node(self.k, self.h, self, leftvalues, --children--)
-            newright = Node(self.k, self.h, self, rightvalues, --children--)
-            newvalues = [median]
-            newchildren = [newleft, newright]
-        else:
             # TODO
-            index = self.parent.children.index(self)
-            # is there room?
-            #  -> self.values(index) is free
-            #  -> self.children(index + 1) is free
-            #  -> no overflow will occur
-            if self.parent.thereisroom():
-                parent.values.insert(index, median)
-                parent.children.insert(index + 1, rightnode)
-            else:
-                #split parent node:
-                #  values + median
-                #  get new left, median, right
-                #  preserve children
-                #  if needed create new root
-            # self.parent.split(self, median, Node(self.k,
-            #                                      self.h,
-            #                                      self.parent,
-            #                                      right,
-            #                                      None))
-
+            pass
+        else:
+            self.parent.put(self, median, Node(self.k,
+                                               self.h,
+                                               self.parent,
+                                               rightvalues,
+                                               rightchildren))
+        
     def insert(self, val):
         if self.is_leaf():
+            if val in self.values:
+                return True
             self.values.append(val)
             self.values.sort()
             if len(self.values) > 2*self.k:  # overflow (bigger than 2*k)
@@ -107,8 +105,27 @@ class Node():
         # TODO
         pass
 
+    def __repr__(self):
+        text = '<{} {}>'.format('BTree Node', str(self.values))
+        if self.children:
+            for x in enumerate(self.children):
+                text = text + "\n  " + str(x) + "  " + str(x[1].namefoo)
+        return text
+
 def main():
     #root = Node(k=2, h=1, parent=None, values=[2], children=None)
+    pass
 
 if __name__ == '__main__':
-    main()
+    k = 2
+    h = 2
+    n = Node(k, h, None, [5], None)
+    child1 = Node(k, h, n, [1, 2, 3, 4], None)
+    child1.namefoo = "child1"
+    child2 = Node(k, h, n, [6, 7, 8], None)
+    n.children = [child1, child2]
+    child2.namefoo = "child2"
+
+    for i in range(9,20):
+        n.insert(i)
+        print("insert: {}\n{}".format(i,n))

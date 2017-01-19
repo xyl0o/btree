@@ -32,12 +32,10 @@ class Node():
 
     def search(self, val):
         if val in self.values:
-            return True, self  # then return this node
-
-        # if this is a leaf, val is here or not in the tree at all
+            return True, self
+        # if this is a leaf, val belongs in here
         if self.is_leaf():
-            return False, self  # val not in tree
-
+            return False, self
         # get index for subtree to search in
         index = 0
         while index < len(self.values) and self.values[index] < val:
@@ -45,63 +43,60 @@ class Node():
         subtree = self.children[index]
         return subtree.search(val)
 
-    # install new relations
-    def put(self, origin, median, new):
-        index = self.children.index(origin) + 1
-        self.values.insert(index, median)
-        self.children.insert(index, new)
-
-        # TODO find another way
-        if origin.children:
-            for x in origin.children:
-                    x.parent = origin
-        if new.children:
-            for x in new.children:
-                    x.parent = new
-
-        if len(self.values) > 2*self.k:
-            self.split()
-
     def split(self):
-        assert len(self.values) > 2*self.k, "please split only (over-)full nodes"
+        assert len(self.values) is 2*self.k + 1, "please split only (over-)full nodes"
         leftvalues = self.values[:self.k]
-        # TODO why not: leftchildren = self.children[:self.k+1] if self.children else None
-        leftchildren = self.children[:self.k] if self.children else None
-
+        leftchildren = self.children[:self.k+1] if self.children else None
         median = self.values[self.k]
-
         rightvalues = self.values[self.k+1:]
         rightchildren = self.children[self.k+1:] if self.children else None
 
         if self.is_root():
-            if self.children:
-                leftchildren = self.children[:self.k+1]
             root = self
-            self.values = None
-            self.children = None
-            left = Node(self.k,
-                        self.h,
-                        self,
+            left = Node(root.k,
+                        root.h,
+                        root,
                         leftvalues,
                         leftchildren)
-            self.values = []
-            self.children = [left]
+            right = Node(root.k,
+                         root.h,
+                         root,
+                         rightvalues,
+                         rightchildren)
+            root.values = [median]
+            root.children = [left, right]
 
-            self.put(left, median, Node(self.k,
-                                        self.h,
-                                        self,
-                                        rightvalues,
-                                        rightchildren))
+            for x in root.children:
+                x.parent = root
+                # FUCK THIS.
+                # NOT HAVING THIS WAS THE BUG:
+                if x.children:
+                    for y in x.children:
+                        y.parent = x
+
+            if len(root.values) > 2*root.k:
+                root.split()
         else:
-            self.values = leftvalues
-            self.children = leftchildren
+            root = self.parent
+            left = self
+            left.values = leftvalues
+            left.children = leftchildren
 
-            self.parent.put(self, median, Node(self.k,
-                                               self.h,
-                                               self,
-                                               rightvalues,
-                                               rightchildren))
-        
+            right = Node(left.k,
+                       left.h,
+                       root,
+                       rightvalues,
+                       rightchildren)
+            if right.children:
+                for x in right.children:
+                    x.parent = right
+            index = root.children.index(left)
+            root.values.insert(index, median)
+            root.children.insert(index + 1, right)
+
+            if len(root.values) > 2*root.k:
+                root.split()
+
     def insert(self, val):
         if self.is_leaf():
             if val in self.values:
@@ -110,6 +105,7 @@ class Node():
             self.values.sort()
             if len(self.values) > 2*self.k:  # overflow (bigger than 2*k)
                 self.split()
+                testhis(self)
         else:
             found, node = self.search(val)
             if found:
@@ -121,18 +117,41 @@ class Node():
         pass
 
     def __repr__(self):
-        name = 'leaf' if self.is_leaf() else 'node'
-        name = 'root' if self.is_root() else name
-        text = '{}{} {}'.format('  '*self.root_dist()+'\\', name, str(self.values))
-        if self.children:
-            for x in self.children:
-                text = text + "\n  " + str(x)
+        text = '<btree node {}> leaf: {}'.format(str(self.values), self.is_leaf())
         return text
 
-if __name__ == '__main__':
-    n = Node(6,20)
+    def __str__(self):
+        name = 'leaf' if self.is_leaf() else 'node'
+        name = 'root' if self.is_root() else name
+        text = '{}{} {}'.format('    '*self.root_dist()+'\\', name, str(self.values))
+        if self.children:
+            for x in self.children:
+                text = text + "\n" + str(x)
+        return text
 
-    for i in range(1,150):
+def testthis(node):
+    if not node.is_root():
+        assert node in node.parent.children, "i am not in my parent children list"
+    
+    if not node.is_leaf():
+        for x in node.children:
+            assert x.parent is node, "my child has another parent than me"
+    self.testrel() #test if my children have me as parent
+    self.testrel2() #test if i am in my parents children list
+    assert len(self.values) <= self.k*2, "too many values left in me"
+    if not self.is_leaf():
+        assert len(self.children) <= self.k*2+1, "too many children left in me"
+
+if __name__ == '__main__':
+    if True:
+        gdbvalues = [77, 12, 48, 69, 33, 89, 97, 91, 37, 45, 83, 2, 5, 57, 90, 95, 99, 50]
+        test = gdbvalues[:18]
+        n = Node(2,20)
+    else:
+        test = range(1,500)
+        n = Node(1,20)
+
+    for i in test:
         print("\ninsert", i)
         n.insert(i)
         print(n)

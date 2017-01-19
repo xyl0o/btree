@@ -65,25 +65,41 @@ class Node():
         # with the median acting as a separation value.
         leftvalues = self.values[:self.k]
         rightvalues = self.values[self.k+1:]
+        leftchildren = rightchildren = None
         if self.children:
-            leftchildren = self.children[:self.k]  # TODO copy also childen
-            rightchildren = self.children[self.k+1:]  # TODO copy also childen
-        else:
-            leftchildren = None
-            rightchildren = None
+            leftchildren = self.children[:self.k]
+            rightchildren = self.children[self.k+1:]
         # The separation value is inserted in the node's parent,
         # which may cause it to be split, and so on.
         # If the node has no parent (i.e., the node was the root),
         # create a new root above this node (increasing the height of the tree)
-        self.values = leftvalues 
-        self.children = leftchildren
+        root=self.parent
         if self.is_root():
-            # TODO
-            pass
+            if self.children:
+                leftchildren = self.children[:self.k+1]
+            root = self
+            self.values = None
+            self.children = None
+            left = Node(self.k,
+                        self.h,
+                        root,
+                        leftvalues,
+                        leftchildren)
+            self.values = []
+            self.children = [left]
+
+            root.put(left, median, Node(self.k,
+                                        self.h,
+                                        root,
+                                        rightvalues,
+                                        rightchildren))
         else:
+            self.values = leftvalues
+            self.children = leftchildren
+
             self.parent.put(self, median, Node(self.k,
                                                self.h,
-                                               self.parent,
+                                               root,
                                                rightvalues,
                                                rightchildren))
         
@@ -117,15 +133,11 @@ def main():
     pass
 
 if __name__ == '__main__':
-    k = 2
+    k = 1
     h = 2
-    n = Node(k, h, None, [5], None)
-    child1 = Node(k, h, n, [1, 2, 3, 4], None)
-    child1.namefoo = "child1"
-    child2 = Node(k, h, n, [6, 7, 8], None)
-    n.children = [child1, child2]
-    child2.namefoo = "child2"
+    n = Node(k, h, None, [1], None)
 
-    for i in range(9,20):
+    for i in range(2,8):
+        print("begin insert {} -----------------------------------".format(i))
         n.insert(i)
-        print("insert: {}\n{}".format(i,n))
+        print("insert: {}\n{}\n\n".format(i,n))

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 class Node():
-    def __init__(self, k, h, parent, values, children):
+    def __init__(self, k, h, parent=None, values=None, children=None):
         self.k = k
         self.h = h
 
@@ -10,7 +10,8 @@ class Node():
         assert not parent or parent.root_dist() + 1 < h, "h = %s is too small for this node" % h
         self.parent = parent
 
-        assert len(values) > 0, "give at least one item"
+        if values is None:
+            values = []
         assert self.is_root() or len(values) >= k, "only root may contain less than %i" % k
         assert len(values) <= 2*k, "values must contain <= %i elements" % 2*k
         self.values = values # size: 2k
@@ -29,9 +30,6 @@ class Node():
             return 0
         return self.parent.root_dist() + 1
 
-    def is_full(self):
-        return len(self.values) is 2*self.k
-
     def search(self, val):
         if val in self.values:
             return True, self  # then return this node
@@ -40,40 +38,41 @@ class Node():
         if self.is_leaf():
             return False, self  # val not in tree
 
-        # get subtree to search
+        # get index for subtree to search in
         index = 0
         while index < len(self.values) and self.values[index] < val:
             index += 1
-        # now index points to the item to big for val
-        # so it is the correct index for children
         subtree = self.children[index]
         return subtree.search(val)
 
+    # install new relations
     def put(self, origin, median, new):
         index = self.children.index(origin) + 1
         self.values.insert(index, median)
         self.children.insert(index, new)
+
+        # TODO find another way
+        if origin.children:
+            for x in origin.children:
+                    x.parent = origin
+        if new.children:
+            for x in new.children:
+                    x.parent = new
+
         if len(self.values) > 2*self.k:
             self.split()
 
     def split(self):
         assert len(self.values) > 2*self.k, "please split only (over-)full nodes"
-        # A single median is chosen from among the leaf's elements and the new element.
-        median = self.values[self.k]
-        # Values less than the median are put in the new left node
-        # and values greater than the median are put in the new right node,
-        # with the median acting as a separation value.
         leftvalues = self.values[:self.k]
+        # TODO why not: leftchildren = self.children[:self.k+1] if self.children else None
+        leftchildren = self.children[:self.k] if self.children else None
+
+        median = self.values[self.k]
+
         rightvalues = self.values[self.k+1:]
-        leftchildren = rightchildren = None
-        if self.children:
-            leftchildren = self.children[:self.k]
-            rightchildren = self.children[self.k+1:]
-        # The separation value is inserted in the node's parent,
-        # which may cause it to be split, and so on.
-        # If the node has no parent (i.e., the node was the root),
-        # create a new root above this node (increasing the height of the tree)
-        root=self.parent
+        rightchildren = self.children[self.k+1:] if self.children else None
+
         if self.is_root():
             if self.children:
                 leftchildren = self.children[:self.k+1]
@@ -82,15 +81,15 @@ class Node():
             self.children = None
             left = Node(self.k,
                         self.h,
-                        root,
+                        self,
                         leftvalues,
                         leftchildren)
             self.values = []
             self.children = [left]
 
-            root.put(left, median, Node(self.k,
+            self.put(left, median, Node(self.k,
                                         self.h,
-                                        root,
+                                        self,
                                         rightvalues,
                                         rightchildren))
         else:
@@ -99,7 +98,7 @@ class Node():
 
             self.parent.put(self, median, Node(self.k,
                                                self.h,
-                                               root,
+                                               self,
                                                rightvalues,
                                                rightchildren))
         
@@ -122,22 +121,18 @@ class Node():
         pass
 
     def __repr__(self):
-        text = '<{} {}>'.format('BTree Node', str(self.values))
+        name = 'leaf' if self.is_leaf() else 'node'
+        name = 'root' if self.is_root() else name
+        text = '{}{} {}'.format('  '*self.root_dist()+'\\', name, str(self.values))
         if self.children:
-            for x in enumerate(self.children):
-                text = text + "\n  " + str(x) + "  " + str(x[1].namefoo)
+            for x in self.children:
+                text = text + "\n  " + str(x)
         return text
 
-def main():
-    #root = Node(k=2, h=1, parent=None, values=[2], children=None)
-    pass
-
 if __name__ == '__main__':
-    k = 1
-    h = 2
-    n = Node(k, h, None, [1], None)
+    n = Node(6,20)
 
-    for i in range(2,8):
-        print("begin insert {} -----------------------------------".format(i))
+    for i in range(1,150):
+        print("\ninsert", i)
         n.insert(i)
-        print("insert: {}\n{}\n\n".format(i,n))
+        print(n)

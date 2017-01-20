@@ -32,19 +32,20 @@ class Node():
         return self.parent.dist() + 1
 
     # descent into subtree
-    def search(self, val):
-        if val in self.values:
-            return True, self  # val is here
+    # do not depend on 'item in subtree' __contains__ depends on you
+    def search(self, item):
+        if item in self.values:
+            return True, self  # item is here
         if self.is_leaf():
-            return False, self  # val would but isn't here
+            return False, self  # item would but isn't here
         # get index for subtree to search in
         index = 0
-        while index < len(self.values) and self.values[index] < val:
+        while index < len(self.values) and self.values[index] < item:
             index += 1
-        # return node where val belongs
-        return self.children[index].search(val)
+        # return node where item belongs
+        return self.children[index].search(item)
 
-    # check if rebalancing has to be done
+    # check if rebalancing is necessary
     def rebalance(self):
         if len(self.values) > 2 * self.k:
             self.split()
@@ -94,17 +95,15 @@ class Node():
         if self.is_leaf():  # this should be internal only
             if item in self:
                 return True
-            self.values.append(item)
-            self.values.sort()
+            self.values = sorted(self.values+[item])
             self.rebalance()
         elif self.is_root():  # this may be implemented elsewhere (only callable if self.is_root())
             # test if item can be added
             try:
-                sorted(self.items()+[item])
+                found, node = self.search(item)  # find place for item
+                return found or node.insert(item)
             except TypeError as e:
-                raise TypeError('element must be comparable to exisitng items')
-            found, node = self.search(item)
-            return found or node.insert(item)
+                raise TypeError('element must be comparable to exisitng items')            
         else:
             return NotImplemented
 

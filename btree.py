@@ -90,20 +90,25 @@ class Node():
     # please support:
     #   [valy, valx].sort()
     #   valx < valy
-    def insert(self, val):
-        if self.is_leaf():
-            if val in self:
+    def insert(self, item):
+        if self.is_leaf():  # this should be internal only
+            if item in self:
                 return True
-            self.values.append(val)
+            self.values.append(item)
             self.values.sort()
             self.rebalance()
         elif self.is_root():  # this may be implemented elsewhere (only callable if self.is_root())
-            found, node = self.search(val)
-            return found or node.insert(val)
+            # test if item can be added
+            try:
+                sorted(self.items()+[item])
+            except TypeError as e:
+                raise TypeError('element must be comparable to exisitng items')
+            found, node = self.search(item)
+            return found or node.insert(item)
         else:
             return NotImplemented
 
-    def delete(self, val):
+    def delete(self, item):
         # TODO
         pass
 

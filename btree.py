@@ -5,8 +5,6 @@ class Node():
         self.k = k
         self.h = h
 
-        self.namefoo=""
-
         assert not parent or parent.dist() + 1 < h, "h = %s is too small for this node" % h
         self.parent = parent
 
@@ -19,118 +17,130 @@ class Node():
         assert not children or len(children) is len(values) + 1, "given children list does not fit with given values"
         self.children = children
 
+    # is this root (it has no parent)
     def is_root(self):
         return self.parent is None
 
+    # is this a leaf (it has no children)
     def is_leaf(self):
         return not self.children
 
+    # distance from root
     def dist(self):
         if not self.parent:
             return 0
         return self.parent.dist() + 1
 
+    # descent into subtree
     def search(self, val):
         if val in self.values:
-            return True, self
-        # if this is a leaf, val belongs in here
+            return True, self  # val is here
         if self.is_leaf():
-            return False, self
+            return False, self  # val would but isn't here
         # get index for subtree to search in
         index = 0
         while index < len(self.values) and self.values[index] < val:
             index += 1
-        subtree = self.children[index]
-        return subtree.search(val)
+        # return node where val belongs
+        return self.children[index].search(val)
 
+    # check if rebalancing has to be done
+    def rebalance(self):
+        if len(self.values) > 2 * self.k:
+            self.split()
+        elif not self.is_root() and len(self.values) < self.k:
+            pass  # TODO
+
+        testthis(self)  # all the asserts
+
+    # split and rebalance an overflowed node recursively
     def split(self):
-        assert len(self.values) is 2*self.k + 1, "please split only (over-)full nodes"
-        leftvalues = self.values[:self.k]
-        leftchildren = self.children[:self.k+1] if self.children else None
-        median = self.values[self.k]
-        rightvalues = self.values[self.k+1:]
-        rightchildren = self.children[self.k+1:] if self.children else None
-
+        values = self.values[:]
+        lchild = self.children[:self.k+1] if self.children else None
+        rchild = self.children[self.k+1:] if self.children else None
+            
         if self.is_root():
-            root = self
-            left = Node(root.k,
-                        root.h,
-                        root,
-                        leftvalues,
-                        leftchildren)
-            right = Node(root.k,
-                         root.h,
-                         root,
-                         rightvalues,
-                         rightchildren)
-            root.values = [median]
-            root.children = [left, right]
-
-            for x in root.children:
-                x.parent = root
-                # FUCK THIS.
-                # NOT HAVING THIS WAS THE BUG:
-                if x.children:
-                    for y in x.children:
-                        y.parent = x
-
-            if len(root.values) > 2*root.k:
-                root.split()
+            parent = self
+            left = Node(parent.k, parent.h, parent, values[:self.k], lchild)
+            parent.values = []
+            parent.children = [left]
+            index = 0
+            if left.children:
+                for child in left.children:
+                    child.parent = left
         else:
-            root = self.parent
+            parent = self.parent
             left = self
-            left.values = leftvalues
-            left.children = leftchildren
+            left.values = values[:self.k]
+            left.children = lchild
+            index = parent.children.index(left)
 
-            right = Node(left.k,
-                       left.h,
-                       root,
-                       rightvalues,
-                       rightchildren)
-            if right.children:
-                for x in right.children:
-                    x.parent = right
-            index = root.children.index(left)
-            root.values.insert(index, median)
-            root.children.insert(index + 1, right)
+        # insert median
+        parent.values.insert(index, values[self.k])
+        # create right node
+        right = Node(parent.k, parent.h, parent, values[self.k+1:], rchild)
+        if right.children:
+            for y in right.children:
+                y.parent = right
+        # insert right node into parent
+        parent.children.insert(index + 1, right)
+        # check if parent is balanced
+        parent.rebalance()
 
-            if len(root.values) > 2*root.k:
-                root.split()
-
+    # please support:
+    #   [valy, valx].sort()
+    #   valx < valy
     def insert(self, val):
         if self.is_leaf():
-            if val in self.values:
+            if val in self:
                 return True
             self.values.append(val)
             self.values.sort()
-            if len(self.values) > 2*self.k:  # overflow (bigger than 2*k)
-                self.split()
-                testthis(self)
-        else:
+            self.rebalance()
+        elif self.is_root():  # this may be implemented elsewhere (only callable if self.is_root())
             found, node = self.search(val)
-            if found:
-                return True
-            return node.insert(val)
+            return found or node.insert(val)
+        else:
+            return NotImplemented
 
-    def delete_val(self, val):
+    def delete(self, val):
         # TODO
         pass
 
-    def __format__(self):
+    def __repr__(self):
         state = 'leaf' if self.is_leaf() else 'node'
         state = 'root' if self.is_root() else state
-        return '<btree {} {} {}>'.format(state, str(self.values))
-
-    def __repr__(self):
-        return self.format()
+        return "<btree {} {}>".format(state, self.values)
 
     def __str__(self):
-        text = '{}\{}'.format('    '*self.dist(), self)
-        text = repr(self)
+        state = 'leaf' if self.is_leaf() else 'node'
+        state = 'root' if self.is_root() else state
+        return "<{}{} of btree {}>".format(state, self.values, self.items())
+
+    # print this subtree in fancy
+    def fancy(self):
+        print("    "*self.dist() + repr(self))
         if self.children:
             for x in self.children:
-                text = text+'\n'+'    '*self.dist()+str(x)
-        return text
+                x.fancy()
+
+    # support: item in this_subtree
+    def __contains__(self, item):
+        return self.search(item)[0]
+
+    # iterate over items in this subtree
+    def __iter__(self):
+        return iter(self.items())
+
+    # get list of items in this subtree
+    def items(self):
+        if self.is_leaf():
+            return self.values[:]
+        items = self.children[0].items()
+        for index, value in enumerate(self.values):
+            items.append(value)
+            items.extend(self.children[index + 1].items())
+        return items
 
 def testthis(node):
     if not node.is_root():
@@ -155,4 +165,6 @@ if __name__ == '__main__':
     for i in test:
         print("\ninsert", i)
         n.insert(i)
-        print(n)
+        n.fancy()
+        assert sorted(n.items()) == n.items(), "Numbers somehow not in order"
+

@@ -7,7 +7,7 @@ class Node():
 
         self.namefoo=""
 
-        assert not parent or parent.root_dist() + 1 < h, "h = %s is too small for this node" % h
+        assert not parent or parent.dist() + 1 < h, "h = %s is too small for this node" % h
         self.parent = parent
 
         if values is None:
@@ -25,10 +25,10 @@ class Node():
     def is_leaf(self):
         return not self.children
 
-    def root_dist(self):
+    def dist(self):
         if not self.parent:
             return 0
-        return self.parent.root_dist() + 1
+        return self.parent.dist() + 1
 
     def search(self, val):
         if val in self.values:
@@ -105,7 +105,7 @@ class Node():
             self.values.sort()
             if len(self.values) > 2*self.k:  # overflow (bigger than 2*k)
                 self.split()
-                testhis(self)
+                testthis(self)
         else:
             found, node = self.search(val)
             if found:
@@ -116,17 +116,20 @@ class Node():
         # TODO
         pass
 
+    def __format__(self):
+        state = 'leaf' if self.is_leaf() else 'node'
+        state = 'root' if self.is_root() else state
+        return '<btree {} {} {}>'.format(state, str(self.values))
+
     def __repr__(self):
-        text = '<btree node {}> leaf: {}'.format(str(self.values), self.is_leaf())
-        return text
+        return self.format()
 
     def __str__(self):
-        name = 'leaf' if self.is_leaf() else 'node'
-        name = 'root' if self.is_root() else name
-        text = '{}{} {}'.format('    '*self.root_dist()+'\\', name, str(self.values))
+        text = '{}\{}'.format('    '*self.dist(), self)
+        text = repr(self)
         if self.children:
             for x in self.children:
-                text = text + "\n" + str(x)
+                text = text+'\n'+'    '*self.dist()+str(x)
         return text
 
 def testthis(node):
@@ -136,11 +139,9 @@ def testthis(node):
     if not node.is_leaf():
         for x in node.children:
             assert x.parent is node, "my child has another parent than me"
-    self.testrel() #test if my children have me as parent
-    self.testrel2() #test if i am in my parents children list
-    assert len(self.values) <= self.k*2, "too many values left in me"
-    if not self.is_leaf():
-        assert len(self.children) <= self.k*2+1, "too many children left in me"
+    assert len(node.values) <= node.k*2, "too many values left in me"
+    if not node.is_leaf():
+        assert len(node.children) <= node.k*2+1, "too many children left in me"
 
 if __name__ == '__main__':
     if True:

@@ -1,77 +1,180 @@
 #!/usr/bin/python
 from collections import MutableSet
-    
+
 
 class BTree(MutableSet):
+    # without k and h 
+    @classmethod
+    def _from_iterable(cls, it):
+        return cls(4, it=it)
+
+    def __init__(self, k, h=0, it=None):
+        self.k = k
+        self.h = h
+        self.root = BTree.Node(k, h)
+        if it:
+            for item in it:
+                self.add(item)
+
+    def newtau(self, k, h=0):
+        self.__init__(k, h, it=iter(self))
+
+    def search(self, item, node=None):
+        node = node if node else self.root
+        if item in node:
+            return True, node
+        if node.isleaf():
+            return False, node
+        return self.search(item, node=node.childfor(item))
+
+    # generator function for values in tree
+    # in order item depth-first items
+    def items(self, node=None):
+        node = node if node else self.root
+        if node.isleaf():
+            yield from node.values
+        else:
+            yield from self.items(node.children[0])
+            for index, value in enumerate(node.values):
+                yield value
+                yield from self.items(node.children[index + 1])
+
+    # pre-order node depth-first items
+    def nodes(self, node=None):
+        node = node if node else self.root
+        yield node
+        if not node.isleaf():
+            for child in node.children:
+                yield from self.nodes(child)
+
+    # print tree in fancy
+    def fancy(self, node=None):
+        node = node if node else self.root
+        print("    " * node.height() + repr(node))
+        if node.children:
+            for child in node.children:
+                self.fancy(child)
+
+    def add(self, item):
+        try:
+            found, node = self.search(item)  # find place for item
+        except TypeError as e:
+            raise TypeError('element must be comparable to exisitng items')
+        if not found:
+            node.insert(item)
+            self.root = node.root()  # root might have changed
+
+    def discard(self, item):
+        found, node = self.search(item)
+        if found:
+            node.remove(item)
+
+    def pop(self):
+        raise NotImplementedError
+        # if not self.root:
+        #     raise KeyError('BTree is empty')
+        # item = reversed(self.root)[0]
+        # self.discard(item)
+        # return item
+
+    def __contains__(self, item):
+        return self.search(item)[0]
+
+    def __len__(self):
+        len = 0
+        for node in self.nodes():
+            len += len(node.values)
+        return len
+
+    def __iter__(self):
+        return self.items()
+
+    def __repr__(self):
+        if not self:
+            return '%s()' % (self.__class__.__name__,)
+        return '%s(%r)' % (self.__class__.__name__, list(self))
+
     class Node():
-        def __init__(self, k, h, parent=None, values=None, children=None):
-            self.k = k
-            self.h = h
-
-            assert not parent or parent.dist() + 1 < h, "h = %s is too small for this node" % h
-            self.parent = parent
-
-            if values is None:
+        def __init__(self, k, h=0, values=None, children=None, parent=None):
+            if not values:
                 values = []
-            assert self.is_root() or len(values) >= k, "only root may contain less than %i" % k
-            assert len(values) <= 2*k, "values must contain <= %i elements" % 2*k
-            self.values = values # size: 2k
+            if children:
+                for child in children:
+                    child.parent = self
 
-            assert not children or len(children) is len(values) + 1, "given children list does not fit with given values"
-            self.children = children
+            self.k, self.h, self.values, self.children, self.parent = k, h, values, children, parent
+
+            self.consistent(family=False)  # Testing every Node
+
+        def consistent(self, family=False):
+            if not self.isroot():
+                assert self.values and len(self.values) >= self.k, "only root may contain less than %i values".format(
+                    self.k)
+                assert self.h <= 0 or self.height() < self.h, "distance to root not smaller than h"
+            assert len(self.values) <= 2 * self.k, "node.values must contain <= %i elements".format(2 * self.k)
+            if not self.isleaf():
+                assert len(self.children) is len(self.values) + 1, "children count is not len(values) + 1"
+            if family:
+                assert self.isroot() or self in self.parent.children, "my parent does not know me"
+                if not self.isleaf():
+                    for child in self.children:
+                        assert self is child.parent, "my child has another parent than me"
 
         # is this root (it has no parent)
-        def is_root(self):
-            return self.parent is None
+        def isroot(self):
+            return not self.parent
 
         # is this a leaf (it has no children)
-        def is_leaf(self):
+        def isleaf(self):
             return not self.children
 
-        # distance from root
-        def dist(self):
-            if not self.parent:
-                return 0
-            return self.parent.dist() + 1
+        # give root node (has
+        def root(self):
+            return self if self.isroot() else self.parent.root()
 
-        # descent into subtree
-        # do not depend on 'item in subtree' __contains__ depends on you
-        def search(self, item):
-            if item in self.values:
-                return True, self  # item is here
-            if self.is_leaf():
-                return False, self  # item would but isn't here
-            # get index for subtree to search in
+        # distance to root respectively the tree height
+        def height(self):
+            return 0 if self.isroot() else self.parent.height() + 1
+
+        def childfor(self, item):
             index = 0
             while index < len(self.values) and self.values[index] < item:
                 index += 1
-            # return node where item belongs
-            return self.children[index].search(item)
+            return self.children[index]
+
+        # please support:
+        #   [valy, valx].sort()
+        #   valx < valy
+        def insert(self, item):
+            if self.isleaf():
+                if item in self:
+                    return True
+                self.values = sorted(self.values + [item])
+                self.check()
+            else:
+                raise NotImplementedError
 
         # check if rebalancing is necessary
-        def rebalance(self):
+        def check(self):
             if len(self.values) > 2 * self.k:
                 self.split()
-            elif not self.is_root() and len(self.values) < self.k:
-                pass  # TODO
+            elif not self.isroot() and len(self.values) < self.k:
+                pass  # TODO underflow
 
-            self.testthis()  # all the asserts
+            self.root().consistent(family=True)  # testing
 
-        # split and rebalance an overflowed node recursively
+        # handle overflow
         def split(self):
             values = self.values[:]
-            lchild = self.children[:self.k+1] if self.children else None
-            rchild = self.children[self.k+1:] if self.children else None
-                
-            if self.is_root():
+            lchild = self.children[:self.k + 1] if self.children else None
+            rchild = self.children[self.k + 1:] if self.children else None
+
+            if self.isroot():
                 parent = self
-                left = BTree.Node(parent.k, parent.h, parent, values[:self.k], lchild)
+                left = BTree.Node(parent.k, parent.h, values[:self.k], lchild, parent)
                 parent.values = []
                 parent.children = [left]
                 index = 0
-                if left.children:
-                    for child in left.children:
-                        child.parent = left
             else:
                 parent = self.parent
                 left = self
@@ -82,139 +185,39 @@ class BTree(MutableSet):
             # insert median
             parent.values.insert(index, values[self.k])
             # create right node
-            right = BTree.Node(parent.k, parent.h, parent, values[self.k+1:], rchild)
-            if right.children:
-                for y in right.children:
-                    y.parent = right
+            right = BTree.Node(parent.k, parent.h, values[self.k + 1:], rchild, parent)
             # insert right node into parent
             parent.children.insert(index + 1, right)
             # check if parent is balanced
-            parent.rebalance()
+            parent.check()
 
-        # please support:
-        #   [valy, valx].sort()
-        #   valx < valy
-        def insert(self, item):
-            if self.is_leaf():  # this should be internal only
-                if item in self:
-                    return True
-                self.values = sorted(self.values+[item])
-                self.rebalance()
-            elif self.is_root():  # this may be implemented elsewhere (only callable if self.is_root())
-                # test if item can be added
-                try:
-                    found, node = self.search(item)  # find place for item
-                    return found or node.insert(item)
-                except TypeError as e:
-                    raise TypeError('element must be comparable to exisitng items')            
-            else:
-                return NotImplemented
-
-        def delete(self, item):
+        def remove(self, item):
             # TODO
             pass
 
         def __repr__(self):
-            state = 'leaf' if self.is_leaf() else 'node'
-            state = 'root' if self.is_root() else state
+            state = 'leaf' if self.isleaf() else 'node'
+            state = 'root' if self.isroot() else state
             return "<btree {} {}>".format(state, self.values)
 
         def __str__(self):
-            state = 'leaf' if self.is_leaf() else 'node'
-            state = 'root' if self.is_root() else state
-            return "<{}{} of btree {}>".format(state, self.values, self.items())
+            state = 'leaf' if self.isleaf() else 'node'
+            state = 'root' if self.isroot() else state
+            return "<{}{} of btree {}>".format(state, self.values, list(iter(self)))
 
         # support: item in this_subtree
         def __contains__(self, item):
-            return self.search(item)[0]
+            return item in self.values
+            # End Node()
 
-        # iterate over items in this subtree
-        def __iter__(self):
-            return iter(self.items())
-
-        # get list of items in this subtree
-        def items(self):
-            if self.is_leaf():
-                return self.values[:]
-            items = self.children[0].items()
-            for index, value in enumerate(self.values):
-                items.append(value)
-                items.extend(self.children[index + 1].items())
-            return items
-
-        def testthis(self):
-            node = self
-            if not node.is_root():
-                assert node in node.parent.children, "i am not in my parent children list"
-            
-            if not node.is_leaf():
-                for x in node.children:
-                    assert x.parent is node, "my child has another parent than me"
-            assert len(node.values) <= node.k*2, "too many values left in me"
-            if not node.is_leaf():
-                assert len(node.children) <= node.k*2+1, "too many children left in me"
-    # End Node()
-
-    # TODO do it with yield and depth search
-    def __init__(self, k, h):
-        self.root = BTree.Node(k, h)
-
-    def __contains__(self, item):
-        return item in self.root
-    
-    def __len__(self):
-        return len(self.root.items())
-
-    def __iter__(self):
-        return iter(self.root)
-
-    def add(self, item):
-        if item not in self.root:
-            self.root.insert(item)
-
-    def discard(self, item):
-        if item in self.root:
-            self.root.remove(item)
-
-    def pop(self, last=True):
-        if not self.root:
-            raise KeyError('BTree is empty')
-        item = self.root.items()[-1]
-        self.discard(item)
-        return item
-
-    def __eq__(self, other):
-        if isinstance(other, OrderedSet):
-            return len(self) == len(other) and list(self) == list(other)
-        return set(self) == set(other)
-
-    def __repr__(self):
-        if not self:
-            return '%s()' % (self.__class__.__name__,)
-        return '%s(%r)' % (self.__class__.__name__, list(self))
-
-    # print this subtree in fancy
-    def fancy(self, node=None):
-        if not node:
-            node = self.root
-        print("    "*node.dist() + repr(node))
-        if node.children:
-            for x in node.children:
-                self.fancy(x)
-    def foo(self):
-        print(set(n))
 
 if __name__ == '__main__':
     if True:
         gdbvalues = [77, 12, 48, 69, 33, 89, 97, 91, 37, 45, 83, 2, 5, 57, 90, 95, 99, 50]
         test = gdbvalues[:18]
-        n = BTree(2,20)
+        n = BTree(2, it=gdbvalues)
     else:
-        test = range(1,50)
-        n = BTree(1,20)
-
-    for i in test:
-        print("insert", i)
-        n.add(i)
-        assert sorted(n.root.items()) == n.root.items(), "Numbers somehow not in order"
+        n = BTree(1, it=range(1, 50))
     n.fancy()
+    iterator = iter(n)
+    print(list(iterator))

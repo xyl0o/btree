@@ -3,7 +3,7 @@ from collections import MutableSet
 
 
 class BTree(MutableSet):
-    # without k and h 
+
     @classmethod
     def _from_iterable(cls, it):
         return cls(4, it=it)
@@ -17,7 +17,7 @@ class BTree(MutableSet):
                 self.add(item)
 
     def newtau(self, k, h=0):
-        self.__init__(k, h, it=iter(self))
+        self.__init__(k, h, it=list(self.items()))
 
     def search(self, item, node=None):
         node = node if node else self.root
@@ -81,10 +81,7 @@ class BTree(MutableSet):
         return self.search(item)[0]
 
     def __len__(self):
-        len = 0
-        for node in self.nodes():
-            len += len(node.values)
-        return len
+        return len(list(self.items()))
 
     def __iter__(self):
         return self.items()
@@ -159,7 +156,7 @@ class BTree(MutableSet):
             if len(self.values) > 2 * self.k:
                 self.split()
             elif not self.isroot() and len(self.values) < self.k:
-                pass  # TODO underflow
+                pass  # TODO handle underflow
 
             self.root().consistent(family=True)  # testing
 
@@ -192,32 +189,31 @@ class BTree(MutableSet):
             parent.check()
 
         def remove(self, item):
-            # TODO
+            # TODO implement
             pass
+
+        def __contains__(self, item):
+            return item in self.values
 
         def __repr__(self):
             state = 'leaf' if self.isleaf() else 'node'
             state = 'root' if self.isroot() else state
             return "<btree {} {}>".format(state, self.values)
 
-        def __str__(self):
-            state = 'leaf' if self.isleaf() else 'node'
-            state = 'root' if self.isroot() else state
-            return "<{}{} of btree {}>".format(state, self.values, list(iter(self)))
-
-        # support: item in this_subtree
-        def __contains__(self, item):
-            return item in self.values
-            # End Node()
-
 
 if __name__ == '__main__':
     if True:
-        gdbvalues = [77, 12, 48, 69, 33, 89, 97, 91, 37, 45, 83, 2, 5, 57, 90, 95, 99, 50]
-        test = gdbvalues[:18]
-        n = BTree(2, it=gdbvalues)
+        testvalues = [77, 12, 48, 69, 33, 89, 97, 91, 37, 45, 83, 2, 5, 57, 90, 95, 99, 50]
+        test = testvalues[:18]
+        n = BTree(2, it=testvalues)
     else:
         n = BTree(1, it=range(1, 50))
+    print(n)
     n.fancy()
-    iterator = iter(n)
-    print(list(iterator))
+    n.newtau(10)
+    n.fancy()
+    n.newtau(1)
+    n.fancy()
+    n.newtau(2)
+    n.fancy()
+    print(n)

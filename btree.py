@@ -62,7 +62,7 @@ class BTree(MutableSet):
             raise TypeError('element must be comparable to exisitng items')
         if not found:
             node.insert(item)
-            self.root = node.root()  # root might have changed
+            self.root = node.getroot()  # root might have changed
 
     def discard(self, item):
         found, node = self.search(item)
@@ -98,6 +98,8 @@ class BTree(MutableSet):
             if children:
                 for child in children:
                     child.parent = self
+            else:
+                children = []
 
             self.k, self.h, self.values, self.children, self.parent = k, h, values, children, parent
 
@@ -126,8 +128,8 @@ class BTree(MutableSet):
             return not self.children
 
         # give root node (has
-        def root(self):
-            return self if self.isroot() else self.parent.root()
+        def getroot(self):
+            return self if self.isroot() else self.parent.getroot()
 
         # distance to root respectively the tree height
         def height(self):
@@ -139,17 +141,12 @@ class BTree(MutableSet):
                 index += 1
             return self.children[index]
 
-        # please support:
-        #   [valy, valx].sort()
-        #   valx < valy
         def insert(self, item):
-            if self.isleaf():
-                if item in self:
-                    return True
-                self.values = sorted(self.values + [item])
-                self.check()
-            else:
-                raise NotImplementedError
+            assert self.isleaf(), "no insert on nodes other than leafes"
+            if item in self:
+                return True
+            self.values = sorted(self.values + [item])
+            self.check()
 
         # check if rebalancing is necessary
         def check(self):
@@ -158,39 +155,30 @@ class BTree(MutableSet):
             elif not self.isroot() and len(self.values) < self.k:
                 pass  # TODO handle underflow
 
-            self.root().consistent(family=True)  # testing
+            self.getroot().consistent(family=True)  # testing
 
         # handle overflow
         def split(self):
-            values = self.values[:]
-            lchild = self.children[:self.k + 1] if self.children else None
-            rchild = self.children[self.k + 1:] if self.children else None
-
             if self.isroot():
-                parent = self
-                left = BTree.Node(parent.k, parent.h, values[:self.k], lchild, parent)
-                parent.values = []
-                parent.children = [left]
+                self.parent = BTree.Node(self.k, self.h, values=[self.values[self.k]],
+                                         children=None, parent=None)
+                self.parent.children = [self]
                 index = 0
             else:
-                parent = self.parent
-                left = self
-                left.values = values[:self.k]
-                left.children = lchild
-                index = parent.children.index(left)
+                index = self.parent.children.index(self)
+                self.parent.values.insert(index, self.values[self.k])
 
-            # insert median
-            parent.values.insert(index, values[self.k])
-            # create right node
-            right = BTree.Node(parent.k, parent.h, values[self.k + 1:], rchild, parent)
-            # insert right node into parent
-            parent.children.insert(index + 1, right)
-            # check if parent is balanced
-            parent.check()
+            right = BTree.Node(self.k, self.h, values=self.values[self.k + 1:],
+                               children=self.children[self.k + 1:], parent=self.parent)
+            self.parent.children.insert(index + 1, right)
+            self.values = self.values[:self.k]
+            self.children = self.children[:self.k + 1]
+
+            self.parent.check()
 
         def remove(self, item):
             # TODO implement
-            pass
+            raise NotImplementedError
 
         def __contains__(self, item):
             return item in self.values
@@ -210,10 +198,3 @@ if __name__ == '__main__':
         n = BTree(1, it=range(1, 50))
     print(n)
     n.fancy()
-    n.newtau(10)
-    n.fancy()
-    n.newtau(1)
-    n.fancy()
-    n.newtau(2)
-    n.fancy()
-    print(n)
